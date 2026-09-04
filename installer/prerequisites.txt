@@ -1,0 +1,19 @@
+Before using 458 Spider Bridge, two one-time steps are needed (this installer
+only sets up the app itself):
+
+1. Install ViGEmBus (virtual controller driver):
+   https://github.com/nefarius/ViGEmBus/releases
+
+2. Rebind the wheel's USB driver to WinUSB using Zadig, so the app can talk to
+   it directly (Windows' own Xbox accessory driver claims the device but never
+   finishes initializing it):
+   https://zadig.akeo.ie/
+   - Plug in the wheel.
+   - Options -> List All Devices.
+   - Select the wheel (shows as "Xbox Gaming Device" the first time).
+   - Choose WinUSB as the target driver, click "Replace Driver".
+   - This only needs to be done once per USB port.
+
+Full details are in README.md alongside the installed application.
+
+Click Next to continue installing 458 Spider Bridge.
