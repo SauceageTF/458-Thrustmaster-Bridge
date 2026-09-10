@@ -1,5 +1,5 @@
 #define MyAppName "458 Spider Bridge"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "458 Spider Bridge"
 #define MyAppExeName "WheelBridge.exe"
 #define PublishDir "..\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"

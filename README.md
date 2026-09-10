@@ -18,9 +18,14 @@ flapped between "detected"/"not detected" for exactly this reason.
 
 The fix used here: rebind the device to **WinUSB** (via Zadig) so Windows'
 Xbox accessory driver never touches it, then talk to it directly over raw USB.
-The wheel turns out to stream continuous, unencrypted vendor-specific reports
-on its interrupt IN endpoint with no authentication/handshake required — no
-Xbox Security Method 3 needed.
+The wheel speaks **GIP** (Gaming Input Protocol — it declares the
+`MS_COMP_XGIP10` compatible ID) over unencrypted vendor-specific interrupt
+transfers, no Xbox Security Method 3 / crypto handshake needed. It does,
+however, require the standard GIP handshake: on connect it sends an Announce
+frame and then sits idle until the host sends Power On, LED Mode, and a
+Serial Number request, at which point it starts streaming real Input frames.
+Skip the handshake and every read just returns the same idle Announce frame
+forever, which looks like a "detected but frozen" wheel.
 
 ## One-time machine setup
 
@@ -52,20 +57,37 @@ virtual controller. It auto-detects the wheel and ViGEmBus on startup and
 retries every couple seconds if either isn't ready yet or the wheel gets
 unplugged.
 
-## USB report format (reverse engineered)
+## Protocol (reverse engineered)
 
-21-byte interrupt IN packets on endpoint `0x81`:
+Every packet on interrupt endpoint `0x81` starts with a 4-byte GIP header:
 
 | Offset | Field |
 |---|---|
-| 0-1 | constant header (`0x20 0x00`) |
-| 2-3 | LE16 sequence counter |
+| 0 | command (`0x02`=Announce, `0x20`=Input; see `WheelBridgeService.cs` for the rest) |
+| 1 | low nibble = device ID, high nibble = frame type |
+| 2 | sequence number |
+| 3 | payload length |
+
+On connect, the wheel sends an **Announce** (`0x02`) frame and then goes
+idle. The host must reply on endpoint `0x01` with three GIP commands, in
+order, before it'll send real input:
+
+1. Power Mode: On (`0x05`)
+2. LED Mode: On (`0x0A`)
+3. Request Serial Number (`0x1E`)
+
+See `SendGipHandshake` in `WheelBridgeService.cs` for the exact bytes. Once
+handshaken, the wheel streams 21-byte **Input** (`0x20`) frames. Payload
+layout (offsets relative to the start of the packet, i.e. including the
+4-byte header):
+
+| Offset | Field |
+|---|---|
 | 4 | button bitmask A: `0x04`=Start, `0x08`=Back, `0x10`=A, `0x20`=B, `0x40`=X, `0x80`=Y |
 | 5 | button bitmask B: `0x01`=D-pad Up, `0x02`=Down, `0x04`=Left, `0x08`=Right, `0x10`=left paddle, `0x20`=right paddle |
 | 6-7 | LE16 wheel position, centered at `0x8000` |
 | 8-9 | LE16 throttle, 0 at rest, ~0x3FF at full press |
 | 10-11 | LE16 brake, same range |
-| 20 | pedal-set-connected flags (`0xC0` when the throttle/brake pedals are plugged in) |
 
 All other bytes are always zero in this configuration (no clutch pedal was
 available to test).

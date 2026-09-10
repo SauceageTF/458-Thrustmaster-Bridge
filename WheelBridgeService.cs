@@ -44,6 +44,19 @@ public sealed class WheelBridgeService : IDisposable
     private const int VendorId = 0x044F;
     private const int ProductId = 0xB671;
 
+    // GIP (Gaming Input Protocol) frame command IDs. This device is a real GIP
+    // accessory (declares the MS_COMP_XGIP10 compatible ID) -- it doesn't just
+    // free-stream input reports, it sends an Announce and then waits for the
+    // host to complete a small handshake before it starts sending Input frames.
+    private const byte GipCmdAnnounce = 0x02;
+    private const byte GipCmdPowerMode = 0x05;
+    private const byte GipCmdLedMode = 0x0A;
+    private const byte GipCmdSerialNumber = 0x1E;
+    private const byte GipCmdInput = 0x20;
+    private const byte GipTypeRequest = 0x02;
+    private const byte GipTypeRequestAck = 0x03;
+
+    // Offsets into a Cmd_Input frame (4-byte GIP header + payload).
     private const int WheelOffset = 6;
     private const int ThrottleOffset = 8;
     private const int BrakeOffset = 10;
@@ -120,6 +133,21 @@ public sealed class WheelBridgeService : IDisposable
         return Math.Clamp(Math.Pow(rescaled, curve), 0.0, 1.0);
     }
 
+    /// <summary>
+    /// Completes the GIP handshake (power on, LED, serial number request) that this
+    /// device requires before it will start sending Input frames. Modeled on the
+    /// verified-working handshake in medusalix/xow (controller/controller.cpp).
+    /// </summary>
+    private static void SendGipHandshake(UsbEndpointWriter writer, byte deviceId)
+    {
+        byte seq = 1;
+        byte TypeByte(byte type) => (byte)(((type & 0x0F) << 4) | (deviceId & 0x0F));
+
+        writer.Write(new byte[] { GipCmdPowerMode, TypeByte(GipTypeRequest), seq++, 0x01, 0x00 }, 500, out _);
+        writer.Write(new byte[] { GipCmdLedMode, TypeByte(GipTypeRequest), seq++, 0x03, 0x00, 0x01, 0x14 }, 500, out _);
+        writer.Write(new byte[] { GipCmdSerialNumber, TypeByte(GipTypeRequestAck), seq++, 0x01, 0x04 }, 500, out _);
+    }
+
     private void Run(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -157,6 +185,18 @@ public sealed class WheelBridgeService : IDisposable
 
                 device.ClaimInterface(device.Configs[0].Interfaces[0].Number);
                 var reader = device.OpenEndpointReader(ReadEndpointID.Ep01, 64, EndpointType.Interrupt);
+                var writer = device.OpenEndpointWriter(WriteEndpointID.Ep01, EndpointType.Interrupt);
+
+                // The device announces itself (GIP Announce frame) as soon as the interface
+                // is claimed, then sits idle until the handshake below is sent -- it will
+                // never send real Input frames on its own.
+                var announceBuf = new byte[64];
+                if (reader.Read(announceBuf, 1000, out int announceBytes) == Error.Success &&
+                    announceBytes >= 4 && announceBuf[0] == GipCmdAnnounce)
+                {
+                    byte deviceId = (byte)(announceBuf[1] & 0x0F);
+                    SendGipHandshake(writer, deviceId);
+                }
 
                 try
                 {
@@ -182,8 +222,10 @@ public sealed class WheelBridgeService : IDisposable
                         SetState(CurrentState with { WheelConnected = false, StatusMessage = "Wheel disconnected, waiting for reconnect..." });
                         break;
                     }
-                    if (err != Error.Success || bytesRead < 12)
-                        continue; // timeout or short read, just poll again
+                    // Timeouts, short reads, and non-Input GIP frames (e.g. a repeated
+                    // Announce) are all just skipped -- only Input frames carry live state.
+                    if (err != Error.Success || bytesRead < 12 || buf[0] != GipCmdInput)
+                        continue;
 
                     var settings = Settings;
 
