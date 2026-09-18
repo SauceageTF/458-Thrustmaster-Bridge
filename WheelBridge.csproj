@@ -20,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="LibUsbDotNet" Version="3.0.224" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

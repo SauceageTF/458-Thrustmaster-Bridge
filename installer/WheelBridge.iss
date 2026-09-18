@@ -1,5 +1,5 @@
 #define MyAppName "458 Spider Bridge"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "458 Spider Bridge"
 #define MyAppExeName "WheelBridge.exe"
 #define PublishDir "..\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
@@ -32,6 +32,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\pico\main.py"; DestDir: "{app}\pico"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

@@ -88,8 +88,21 @@ public sealed class WheelBridgeService : IDisposable
     private CancellationTokenSource? _cts;
     private Thread? _thread;
 
+    private volatile WheelSettings _settings = new();
+
     /// <summary>Read on every packet from the bridge thread; assign a whole new instance to update (no partial-write races).</summary>
-    public volatile WheelSettings Settings = new();
+    public WheelSettings Settings
+    {
+        get => _settings;
+        set
+        {
+            _settings = value;
+            Haptics.Settings = value;
+        }
+    }
+
+    /// <summary>Rumble the game sends to the virtual pad, forwarded to an external motor since the wheel has none.</summary>
+    public HapticOutput Haptics { get; } = new();
 
     public event Action<WheelState>? StateChanged;
 
@@ -106,6 +119,7 @@ public sealed class WheelBridgeService : IDisposable
         _cts = new CancellationTokenSource();
         _thread = new Thread(() => Run(_cts.Token)) { IsBackground = true, Name = "WheelBridge" };
         _thread.Start();
+        Haptics.Start();
     }
 
     public void Stop()
@@ -113,6 +127,7 @@ public sealed class WheelBridgeService : IDisposable
         _cts?.Cancel();
         _thread?.Join(TimeSpan.FromSeconds(2));
         _thread = null;
+        Haptics.Stop();
     }
 
     public void Dispose() => Stop();
@@ -146,6 +161,32 @@ public sealed class WheelBridgeService : IDisposable
         writer.Write(new byte[] { GipCmdPowerMode, TypeByte(GipTypeRequest), seq++, 0x01, 0x00 }, 500, out _);
         writer.Write(new byte[] { GipCmdLedMode, TypeByte(GipTypeRequest), seq++, 0x03, 0x00, 0x01, 0x14 }, 500, out _);
         writer.Write(new byte[] { GipCmdSerialNumber, TypeByte(GipTypeRequestAck), seq++, 0x01, 0x04 }, 500, out _);
+    }
+
+    /// <summary>
+    /// Works out which XInput slot the virtual pad landed in. ViGEmBus can report it
+    /// directly on recent drivers; otherwise fall back to "whichever slot appeared
+    /// after Connect", giving XInput a moment to notice the new device.
+    /// </summary>
+    private static int ResolveVirtualPadSlot(IXbox360Controller pad, HashSet<int> slotsBefore)
+    {
+        try
+        {
+            return pad.UserIndex;
+        }
+        catch (Exception)
+        {
+            // Older ViGEmBus, or the index isn't assigned yet -- diff instead.
+        }
+
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var added = XInputRumble.ConnectedSlots().Where(s => !slotsBefore.Contains(s)).ToList();
+            if (added.Count == 1)
+                return added[0];
+            Thread.Sleep(100);
+        }
+        return HapticOutput.VirtualPadSlotUnknown;
     }
 
     private void Run(CancellationToken token)
@@ -210,7 +251,12 @@ public sealed class WheelBridgeService : IDisposable
                 }
 
                 var pad = client.CreateXbox360Controller();
+                // Games rumble the virtual pad like any Xbox 360 controller; the
+                // wheel can't act on it, so hand it to the external motor driver.
+                pad.FeedbackReceived += (_, fb) => Haptics.SetRumble(fb.LargeMotor, fb.SmallMotor);
+                var slotsBefore = XInputRumble.ConnectedSlots().ToHashSet();
                 pad.Connect();
+                Haptics.VirtualPadSlot = ResolveVirtualPadSlot(pad, slotsBefore);
                 SetState(CurrentState with { WheelConnected = true, VigemConnected = true, StatusMessage = "Connected" });
 
                 var buf = new byte[64];
@@ -270,6 +316,9 @@ public sealed class WheelBridgeService : IDisposable
             }
             finally
             {
+                // The pad is going away, so no more feedback events will arrive to clear a held rumble.
+                Haptics.SetRumble(0, 0);
+                Haptics.VirtualPadSlot = HapticOutput.NoVirtualPad;
                 client?.Dispose();
                 device?.Close();
                 deviceCollection?.Dispose();

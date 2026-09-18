@@ -37,6 +37,11 @@ public partial class MainWindow : Window
         ThrottleDeadzoneSlider.Value = _settings.ThrottleDeadzone;
         BrakeDeadzoneSlider.Value = _settings.BrakeDeadzone;
         PedalCurveSlider.Value = _settings.PedalCurve;
+        HapticXboxRadio.IsChecked = _settings.HapticTarget == HapticTarget.XboxController;
+        HapticPicoRadio.IsChecked = _settings.HapticTarget == HapticTarget.PicoSerial;
+        HapticOffRadio.IsChecked = _settings.HapticTarget == HapticTarget.Off;
+        HapticPortBox.Text = _settings.HapticPort;
+        HapticIntensitySlider.Value = _settings.HapticIntensity;
         StartMinimizedCheck.IsChecked = _settings.StartMinimized;
         LaunchAtStartupCheck.IsChecked = _settings.LaunchAtWindowsStartup;
         UpdateSettingsLabels();
@@ -54,6 +59,7 @@ public partial class MainWindow : Window
             > 1.1 => "gradual",
             _ => "linear",
         };
+        HapticIntensityValueText.Text = $"{_settings.HapticIntensity:P0}";
     }
 
     private void Render(WheelState state)
@@ -61,6 +67,12 @@ public partial class MainWindow : Window
         WheelDot.Fill = state.WheelConnected ? (Brush)FindResource("GoodBrush") : (Brush)FindResource("MutedTextBrush");
         VigemDot.Fill = state.VigemConnected ? (Brush)FindResource("GoodBrush") : (Brush)FindResource("MutedTextBrush");
         StatusMessageText.Text = state.StatusMessage ?? "";
+
+        var haptics = _service.Haptics.CurrentState;
+        HapticDot.Fill = haptics.Connected ? (Brush)FindResource("GoodBrush") : (Brush)FindResource("MutedTextBrush");
+        HapticBadgeText.Text = haptics.Connected ? $"RUMBLE → {haptics.TargetName}" : "RUMBLE";
+        RenderRumbleBar(RumbleLargeFill, RumbleLargeText, "LARGE", haptics.LargeMotor);
+        RenderRumbleBar(RumbleSmallFill, RumbleSmallText, "SMALL", haptics.SmallMotor);
 
         SteerValueText.Text = state.Wheel.ToString("0.00");
         if (state.Wheel < 0)
@@ -95,6 +107,45 @@ public partial class MainWindow : Window
 
     private void SetChip(System.Windows.Controls.Border chip, bool active) =>
         chip.Background = active ? (Brush)FindResource("AccentBrush") : (Brush)FindResource("SurfaceBrush");
+
+    private static void RenderRumbleBar(System.Windows.Shapes.Rectangle fill, System.Windows.Controls.TextBlock label, string name, byte value)
+    {
+        var fraction = value / 255.0;
+        fill.Width = ((FrameworkElement)fill.Parent).ActualWidth * fraction;
+        label.Text = $"{name} {fraction:P0}";
+    }
+
+    private void HapticTargetRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!_uiReady) return;
+        _settings.HapticTarget =
+            HapticXboxRadio.IsChecked == true ? HapticTarget.XboxController :
+            HapticPicoRadio.IsChecked == true ? HapticTarget.PicoSerial :
+            HapticTarget.Off;
+    }
+
+    private void HapticPortBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (!_uiReady) return;
+        _settings.HapticPort = HapticPortBox.Text.Trim();
+    }
+
+    private void HapticIntensitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_uiReady) return;
+        _settings.HapticIntensity = e.NewValue;
+        UpdateSettingsLabels();
+    }
+
+    private void TestHapticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_service.Haptics.CurrentState.Connected)
+        {
+            StatusMessageText.Text = "No rumble output connected -- check the RUMBLE OUTPUT setting.";
+            return;
+        }
+        _service.Haptics.Pulse(TimeSpan.FromSeconds(1));
+    }
 
     private void SensitivitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -161,6 +212,9 @@ public partial class MainWindow : Window
         _settings.ThrottleDeadzone = defaults.ThrottleDeadzone;
         _settings.BrakeDeadzone = defaults.BrakeDeadzone;
         _settings.PedalCurve = defaults.PedalCurve;
+        _settings.HapticTarget = defaults.HapticTarget;
+        _settings.HapticPort = defaults.HapticPort;
+        _settings.HapticIntensity = defaults.HapticIntensity;
         _settings.StartMinimized = defaults.StartMinimized;
         _settings.LaunchAtWindowsStartup = defaults.LaunchAtWindowsStartup;
         LoadSettingsIntoUi();

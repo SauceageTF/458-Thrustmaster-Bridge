@@ -26,10 +26,16 @@
                                 <TextBlock Text="WHEEL" FontSize="11" FontWeight="Bold"/>
                             </StackPanel>
                         </Border>
-                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="10,6">
+                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="10,6" Margin="0,0,8,0">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse x:Name="VigemDot" Width="8" Height="8" Fill="{StaticResource MutedTextBrush}" Margin="0,0,6,0"/>
                                 <TextBlock Text="VIGEMBUS" FontSize="11" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="10,6">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="HapticDot" Width="8" Height="8" Fill="{StaticResource MutedTextBrush}" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="HapticBadgeText" Text="RUMBLE" FontSize="11" FontWeight="Bold"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -149,6 +155,26 @@
                         </Border>
                     </StackPanel>
 
+                    <!-- Rumble the game is sending (what the Pico is being told to do) -->
+                    <TextBlock Text="RUMBLE" Style="{StaticResource SectionLabel}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0" Height="22">
+                            <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4"/>
+                            <Rectangle x:Name="RumbleLargeFill" HorizontalAlignment="Left" Width="0" Fill="{StaticResource AccentDimBrush}" RadiusX="4" RadiusY="4"/>
+                            <TextBlock x:Name="RumbleLargeText" Text="LARGE 0%" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="Bold"/>
+                        </Grid>
+                        <Grid Grid.Column="2" Height="22">
+                            <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4"/>
+                            <Rectangle x:Name="RumbleSmallFill" HorizontalAlignment="Left" Width="0" Fill="{StaticResource AccentDimBrush}" RadiusX="4" RadiusY="4"/>
+                            <TextBlock x:Name="RumbleSmallText" Text="SMALL 0%" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="Bold"/>
+                        </Grid>
+                    </Grid>
+
                 </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -214,6 +240,35 @@
                     </Grid>
                     <Slider x:Name="PedalCurveSlider" Minimum="0.5" Maximum="2.0" Value="1.0" ValueChanged="PedalCurveSlider_ValueChanged"/>
                     <TextBlock Text="Below 1.0 = more bite early in the pedal; above 1.0 = more gradual, harder to lock brakes." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
+
+                    <TextBlock Text="RUMBLE OUTPUT" Style="{StaticResource SectionLabel}"/>
+                    <TextBlock Text="The wheel has no motor, so rumble the game sends is forwarded to:" Style="{StaticResource HintText}" Margin="0,0,0,4"/>
+                    <RadioButton x:Name="HapticXboxRadio" GroupName="HapticTarget" Content="Xbox controller strapped to the wheel" Checked="HapticTargetRadio_Checked"/>
+                    <TextBlock Text="Any other plugged-in Xbox controller. Start this app before plugging it in so the wheel stays player 1." Style="{StaticResource HintText}" Margin="20,0,0,4"/>
+                    <RadioButton x:Name="HapticPicoRadio" GroupName="HapticTarget" Content="Raspberry Pi Pico over USB serial" Checked="HapticTargetRadio_Checked"/>
+                    <Grid Margin="20,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Serial port" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBox x:Name="HapticPortBox" Grid.Column="1" Width="90" TextChanged="HapticPortBox_TextChanged"/>
+                    </Grid>
+                    <TextBlock Text="&quot;auto&quot; finds the Pico by its USB ID, or type a port like COM5. See pico/main.py for wiring." Style="{StaticResource HintText}" Margin="20,2,0,4"/>
+                    <RadioButton x:Name="HapticOffRadio" GroupName="HapticTarget" Content="Off" Checked="HapticTargetRadio_Checked"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="40"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Intensity" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBlock x:Name="HapticIntensityValueText" Grid.Column="1" Text="100%" FontSize="12" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <Slider x:Name="HapticIntensitySlider" Minimum="0" Maximum="2.0" Value="1.0" ValueChanged="HapticIntensitySlider_ValueChanged"/>
+                    <TextBlock Text="Scales the game's rumble before it reaches the motors. Above 100% boosts weak motors (clips at full)." Style="{StaticResource HintText}" Margin="0,2,0,8"/>
+
+                    <Button Content="Test motors (1s)" Click="TestHapticsButton_Click" HorizontalAlignment="Left"/>
 
                     <TextBlock Text="APP" Style="{StaticResource SectionLabel}"/>
                     <CheckBox x:Name="StartMinimizedCheck" Content="Start minimized to tray" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>

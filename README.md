@@ -92,9 +92,60 @@ layout (offsets relative to the start of the packet, i.e. including the
 All other bytes are always zero in this configuration (no clutch pedal was
 available to test).
 
+## Optional: rumble
+
+The wheel has no motor, but games still send Xbox 360 rumble to the virtual
+controller. WheelBridge forwards that to one of two outputs (SETTINGS tab ->
+RUMBLE OUTPUT). Rumble strength shows live on the STATUS tab under RUMBLE, and
+"Test motors" pulses whichever output is connected.
+
+### Xbox controller strapped to the wheel (default, no parts needed)
+
+Plug any spare wired Xbox controller into the PC and zip-tie it to the back of
+the wheel hub. WheelBridge re-sends the game's rumble to it via XInput; the
+badge reads `RUMBLE -> XBOX #n`. It never rumbles the virtual wheel itself
+(that would echo back as new feedback).
+
+One thing to get right: games treat the *first-connected* XInput device as
+player 1. Start WheelBridge and let the WHEEL badge go green **before**
+plugging in the spare controller, or just unplug/replug it afterwards. If a
+game steers with the spare controller's stick, that's the cause.
+
+### Raspberry Pi Pico driving bare motors
+
+For a stronger or more compact setup: a Pico on USB serial PWMs one or two
+vibration motors (a salvaged controller rumble motor or coin ERM works well).
+
+**Wiring** (per motor, low-side switch):
+
+```
+GP15 --[1k]-- base of NPN (2N2222/S8050) or gate of logic-level N-MOSFET
+motor between VBUS (5V) and collector/drain; emitter/source to GND
+flyback diode (1N4001/1N5819) across the motor, stripe toward VBUS
+```
+
+Second motor the same on GP14. GP15 is the "large" (low-frequency) motor,
+GP14 the "small" one. Only have one motor? Set `SINGLE_MOTOR = True` in
+`pico/main.py` and it gets the stronger of the two channels.
+
+**Pico setup:**
+
+1. Flash MicroPython (hold BOOTSEL while plugging in, drop the `.uf2` from
+   micropython.org onto the RPI-RP2 drive).
+2. Copy `pico/main.py` to the Pico as `main.py` (Thonny: File -> Save as ->
+   Raspberry Pi Pico). Unplug/replug; it runs on boot.
+3. Close Thonny. Pick "Raspberry Pi Pico" under RUMBLE OUTPUT with the port left
+   on `auto`; WheelBridge finds the Pico by its USB vendor ID and the badge on the
+   STATUS tab turns green. Hit "Test motors" to confirm the wiring.
+
+Protocol, in case you want a different receiver: 115200 8N1, 3-byte frames
+`0xAA, large, small` (each 0-255), sent on every change and as a 5 Hz
+keepalive. The Pico cuts the motors if it hears nothing for 500 ms.
+
 ## Known limitations
 
-- No force feedback (this wheel doesn't have an FFB motor).
+- No force feedback (this wheel doesn't have an FFB motor). The rumble
+  outputs above are vibration only, not steering force.
 - Games see it as an Xbox 360 gamepad, so some sims apply gamepad-style
   steering filters/deadzones — look for a "direct"/"raw" input mode if
   steering feels off.
