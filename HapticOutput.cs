@@ -123,7 +123,8 @@ public sealed class HapticOutput : IDisposable
         {
             if (DateTime.UtcNow < _testUntil)
                 return (255, 255);
-            return (Scale(_large, settings.HapticIntensity), Scale(_small, settings.HapticIntensity));
+            var intensity = settings.Active.HapticIntensity;
+            return (Scale(_large, intensity), Scale(_small, intensity));
         }
     }
 

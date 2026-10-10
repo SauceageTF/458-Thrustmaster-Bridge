@@ -1,6 +1,7 @@
 <Window x:Class="WheelBridge.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WheelBridge"
         Title="458 Spider Bridge" Height="760" Width="440" MinHeight="600" MinWidth="420"
         Icon="app.ico"
         ResizeMode="CanResizeWithGrip" WindowStartupLocation="CenterScreen">
@@ -13,10 +14,39 @@
             </StackPanel>
         </Border>
 
+        <!-- The profile switcher sits over the right end of the tab row. It's a sibling of
+             the TabControl rather than part of its template, because a TabControl only
+             exposes its tabs to screen readers/UI automation. -->
+        <Grid>
         <TabControl>
-            <TabItem Header="STATUS">
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}">
+                            <TabPanel IsItemsHost="True"/>
+                        </Border>
+                        <Border Background="{TemplateBinding Background}">
+                            <!-- This exact name is how WPF exposes the tab's content to screen readers/UI automation -->
+                            <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
+                        </Border>
+                    </DockPanel>
+                </ControlTemplate>
+            </TabControl.Template>
+            <TabItem x:Name="StatusTab" Header="STATUS">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="18,14">
+
+                    <!-- Update banner, shown when GitHub has a newer release -->
+                    <Border x:Name="UpdateBanner" Background="{StaticResource AccentDimBrush}" CornerRadius="4" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="✕" Padding="8,4" Background="Transparent" Click="DismissUpdateButton_Click" ToolTip="Dismiss"/>
+                            <Button DockPanel.Dock="Right" Content="Download" Style="{StaticResource AccentButton}" Padding="12,5" Margin="8,0,4,0" Click="DownloadUpdateButton_Click"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="UpdateBannerTitle" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock x:Name="UpdateBannerDetail" FontSize="11" Opacity="0.8"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
 
                     <!-- Connection badges -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
@@ -182,7 +212,44 @@
             <TabItem Header="SETTINGS">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="18,14">
-                    <TextBlock Text="STEERING" Style="{StaticResource SectionLabel}" Margin="0,0,0,4"/>
+                    <TextBlock Text="CALIBRATION" Style="{StaticResource SectionLabel}" Margin="0,0,0,4"/>
+                    <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="12,10">
+                        <DockPanel>
+                            <Button x:Name="ResetCalibrationButton" DockPanel.Dock="Right" Content="Reset" Click="ResetCalibrationButton_Click" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            <Button DockPanel.Dock="Right" Content="Calibrate..." Style="{StaticResource AccentButton}" Click="CalibrateButton_Click" VerticalAlignment="Center"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse x:Name="CalibrationDot" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="CalibrationStatusText" FontSize="12" FontWeight="Bold"/>
+                                </StackPanel>
+                                <TextBlock x:Name="CalibrationDetailText" Style="{StaticResource HintText}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <TextBlock Text="PROFILE" Style="{StaticResource SectionLabel}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- The profile these settings belong to (switch it from the bar at the top) -->
+                        <Border x:Name="ProfileNamePanel" Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="10,0">
+                            <TextBlock x:Name="ProfileNameText" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        </Border>
+                        <!-- Shown in place of the name while renaming -->
+                        <TextBox x:Name="ProfileNameBox" Visibility="Collapsed" MaxLength="40" VerticalContentAlignment="Center"
+                                 KeyDown="ProfileNameBox_KeyDown" LostKeyboardFocus="ProfileNameBox_LostKeyboardFocus"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                            <Button x:Name="AddProfileButton" Content="New" Click="AddProfileButton_Click" Margin="0,0,6,0" ToolTip="New profile, starting as a copy of the current one"/>
+                            <Button x:Name="RenameProfileButton" Content="Rename" Click="RenameProfileButton_Click" Margin="0,0,6,0"/>
+                            <Button x:Name="DeleteProfileButton" Content="Delete" Click="DeleteProfileButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock x:Name="ProfileHintText" Style="{StaticResource HintText}" Margin="0,4,0,0"/>
+
+                    <TextBlock Text="STEERING" Style="{StaticResource SectionLabel}"/>
+                    <local:CurveGraph x:Name="SteeringGraph" Height="150" Symmetric="True" CurveBrush="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -204,11 +271,37 @@
                         <TextBlock x:Name="SteerDeadzoneValueText" Grid.Column="1" Text="3%" FontSize="12" HorizontalAlignment="Right"/>
                     </Grid>
                     <Slider x:Name="SteerDeadzoneSlider" Minimum="0" Maximum="0.15" Value="0.03" ValueChanged="SteerDeadzoneSlider_ValueChanged"/>
-                    <TextBlock Text="Absorbs spring slack/jitter near center from the bungee return." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
+                    <TextBlock Text="Absorbs spring slack/jitter near center from the bungee return. Output ramps up smoothly from its edge." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Response curve" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBlock x:Name="SteerCurveValueText" Grid.Column="1" Text="linear" FontSize="12" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <Slider x:Name="SteerCurveSlider" IsSnapToTickEnabled="True" TickFrequency="0.05" Minimum="0.5" Maximum="3.0" Value="1.0" ValueChanged="SteerCurveSlider_ValueChanged"/>
+                    <TextBlock Text="Above 1.0 = calmer near center for small corrections (full lock still reachable); below 1.0 = quicker turn-in." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
 
                     <CheckBox x:Name="InvertSteeringCheck" Content="Invert steering" Checked="InvertSteeringCheck_Changed" Unchecked="InvertSteeringCheck_Changed"/>
 
                     <TextBlock Text="PEDALS" Style="{StaticResource SectionLabel}"/>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="THROTTLE" FontSize="10" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,3"/>
+                            <local:CurveGraph x:Name="ThrottleGraph" Height="120" CurveBrush="{StaticResource GoodBrush}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="BRAKE" FontSize="10" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,3"/>
+                            <local:CurveGraph x:Name="BrakeGraph" Height="120" CurveBrush="{StaticResource BadBrush}"/>
+                        </StackPanel>
+                    </Grid>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -223,6 +316,16 @@
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Throttle curve" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBlock x:Name="ThrottleCurveValueText" Grid.Column="1" Text="linear" FontSize="12" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <Slider x:Name="ThrottleCurveSlider" IsSnapToTickEnabled="True" TickFrequency="0.05" Minimum="0.5" Maximum="2.0" Value="1.0" ValueChanged="ThrottleCurveSlider_ValueChanged"/>
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="40"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Brake deadzone" VerticalAlignment="Center" FontSize="12"/>
@@ -233,13 +336,13 @@
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="60"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Pedal curve" VerticalAlignment="Center" FontSize="12"/>
-                        <TextBlock x:Name="PedalCurveValueText" Grid.Column="1" Text="linear" FontSize="12" HorizontalAlignment="Right"/>
+                        <TextBlock Text="Brake curve" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBlock x:Name="BrakeCurveValueText" Grid.Column="1" Text="linear" FontSize="12" HorizontalAlignment="Right"/>
                     </Grid>
-                    <Slider x:Name="PedalCurveSlider" Minimum="0.5" Maximum="2.0" Value="1.0" ValueChanged="PedalCurveSlider_ValueChanged"/>
-                    <TextBlock Text="Below 1.0 = more bite early in the pedal; above 1.0 = more gradual, harder to lock brakes." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
+                    <Slider x:Name="BrakeCurveSlider" IsSnapToTickEnabled="True" TickFrequency="0.05" Minimum="0.5" Maximum="2.0" Value="1.0" ValueChanged="BrakeCurveSlider_ValueChanged"/>
+                    <TextBlock Text="Below 1.0 = more bite early in the pedal; above 1.0 = more gradual (on the brake, harder to lock up)." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
 
                     <TextBlock Text="RUMBLE OUTPUT" Style="{StaticResource SectionLabel}"/>
                     <TextBlock Text="The wheel has no motor, so rumble the game sends is forwarded to:" Style="{StaticResource HintText}" Margin="0,0,0,4"/>
@@ -268,19 +371,38 @@
                     <Slider x:Name="HapticIntensitySlider" Minimum="0" Maximum="2.0" Value="1.0" ValueChanged="HapticIntensitySlider_ValueChanged"/>
                     <TextBlock Text="Scales the game's rumble before it reaches the motors. Above 100% boosts weak motors (clips at full)." Style="{StaticResource HintText}" Margin="0,2,0,8"/>
 
-                    <Button Content="Test motors (1s)" Click="TestHapticsButton_Click" HorizontalAlignment="Left"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Test motors (1s)" Click="TestHapticsButton_Click"/>
+                        <TextBlock x:Name="TestHapticsFeedbackText" Style="{StaticResource HintText}" VerticalAlignment="Center" Margin="10,0,0,0" MaxWidth="250"/>
+                    </StackPanel>
 
                     <TextBlock Text="APP" Style="{StaticResource SectionLabel}"/>
                     <CheckBox x:Name="StartMinimizedCheck" Content="Start minimized to tray" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
                     <CheckBox x:Name="LaunchAtStartupCheck" Content="Launch when Windows starts" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
+                    <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates at startup" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <Button x:Name="CheckUpdatesButton" Content="Check now" Click="CheckUpdatesButton_Click" Margin="0,0,10,0"/>
+                        <TextBlock x:Name="UpdateStatusText" Style="{StaticResource HintText}" VerticalAlignment="Center"/>
+                    </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                         <Button Content="Save" Style="{StaticResource AccentButton}" Click="SaveButton_Click" Margin="0,0,8,0"/>
                         <Button Content="Restore defaults" Click="RestoreDefaultsButton_Click"/>
+                        <TextBlock x:Name="SaveFeedbackText" FontSize="12" Foreground="{StaticResource GoodBrush}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+
+        <!-- Quick profile swap, reachable from either tab -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,12,0"
+                    Height="{Binding ActualHeight, ElementName=StatusTab}">
+            <TextBlock Text="PROFILE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="ProfileCombo" Width="150" VerticalAlignment="Center" DisplayMemberPath="Name" SelectionChanged="ProfileCombo_SelectionChanged"
+                      AutomationProperties.Name="Profile"
+                      ToolTip="Switch profile. Steering, pedal and rumble-intensity settings are saved per profile."/>
+        </StackPanel>
+        </Grid>
     </DockPanel>
 </Window>

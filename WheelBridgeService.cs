@@ -10,6 +10,9 @@ namespace WheelBridge;
 
 /// <summary>
 /// Snapshot of the wheel's current state, safe to read from any thread.
+/// <see cref="Wheel"/>/<see cref="Throttle"/>/<see cref="Brake"/> are what the game
+/// sees; the *Input values are the physical positions before deadzone/curve
+/// (see <see cref="AxisShaping"/>), and the Raw* values are straight off USB.
 /// </summary>
 public sealed record WheelState(
     bool WheelConnected,
@@ -23,6 +26,16 @@ public sealed record WheelState(
     bool Up, bool Down, bool Left, bool Right,
     string? StatusMessage)
 {
+    public double WheelInput { get; init; }
+    public double ThrottleInput { get; init; }
+    public double BrakeInput { get; init; }
+
+    /// <summary>Set once the first Input frame arrives, so the calibration wizard doesn't sample placeholder zeros.</summary>
+    public bool HasInput { get; init; }
+    public int RawWheel { get; init; }
+    public int RawThrottle { get; init; }
+    public int RawBrake { get; init; }
+
     public static readonly WheelState Initial = new(
         false, false, 0, 0, 0,
         false, false, false, false,
@@ -136,16 +149,6 @@ public sealed class WheelBridgeService : IDisposable
     {
         lock (_lock) _state = state;
         StateChanged?.Invoke(state);
-    }
-
-    private static double ApplyAxisCurve(double value01, double deadzone, double curve)
-    {
-        value01 = Math.Clamp(value01, 0.0, 1.0);
-        if (value01 <= deadzone)
-            return 0.0;
-
-        var rescaled = (value01 - deadzone) / (1.0 - deadzone);
-        return Math.Clamp(Math.Pow(rescaled, curve), 0.0, 1.0);
     }
 
     /// <summary>
@@ -274,20 +277,21 @@ public sealed class WheelBridgeService : IDisposable
                         continue;
 
                     var settings = Settings;
+                    var tuning = settings.Active;
 
                     var wheelRaw = BitConverter.ToUInt16(buf, WheelOffset);
                     var throttleRaw = BitConverter.ToUInt16(buf, ThrottleOffset);
                     var brakeRaw = BitConverter.ToUInt16(buf, BrakeOffset);
 
-                    var wheel = (wheelRaw - 32768) / 32768.0 * settings.SteeringSensitivity;
-                    if (Math.Abs(wheel) < settings.SteeringDeadzone)
-                        wheel = 0;
-                    wheel = Math.Clamp(wheel, -1.0, 1.0);
-                    if (settings.InvertSteering)
-                        wheel = -wheel;
+                    var wheelInput = AxisShaping.NormalizeSteering(wheelRaw, settings);
+                    var throttleInput = AxisShaping.NormalizePedal(throttleRaw, settings.ThrottleRestRaw, settings.ThrottleMaxRaw);
+                    var brakeInput = AxisShaping.NormalizePedal(brakeRaw, settings.BrakeRestRaw, settings.BrakeMaxRaw);
 
-                    var throttle = ApplyAxisCurve(throttleRaw / 1023.0, settings.ThrottleDeadzone, settings.PedalCurve);
-                    var brake = ApplyAxisCurve(brakeRaw / 1023.0, settings.BrakeDeadzone, settings.PedalCurve);
+                    var wheel = AxisShaping.ShapeSteering(wheelInput, tuning);
+                    if (tuning.InvertSteering)
+                        wheel = -wheel;
+                    var throttle = AxisShaping.ShapePedal(throttleInput, tuning.ThrottleDeadzone, tuning.ThrottleCurve);
+                    var brake = AxisShaping.ShapePedal(brakeInput, tuning.BrakeDeadzone, tuning.BrakeCurve);
 
                     pad.SetAxisValue(Xbox360Axis.LeftThumbX, (short)Math.Clamp(wheel * short.MaxValue, short.MinValue, short.MaxValue));
                     pad.SetSliderValue(Xbox360Slider.RightTrigger, (byte)(throttle * 255));
@@ -306,7 +310,16 @@ public sealed class WheelBridgeService : IDisposable
                         LeftShoulder: (b2 & 0x10) != 0, RightShoulder: (b2 & 0x20) != 0,
                         Start: (b1 & 0x04) != 0, Back: (b1 & 0x08) != 0,
                         Up: (b2 & 0x01) != 0, Down: (b2 & 0x02) != 0, Left: (b2 & 0x04) != 0, Right: (b2 & 0x08) != 0,
-                        StatusMessage: "Connected"));
+                        StatusMessage: "Connected")
+                    {
+                        WheelInput = wheelInput,
+                        ThrottleInput = throttleInput,
+                        BrakeInput = brakeInput,
+                        HasInput = true,
+                        RawWheel = wheelRaw,
+                        RawThrottle = throttleRaw,
+                        RawBrake = brakeRaw,
+                    });
                 }
             }
             catch (Exception ex)

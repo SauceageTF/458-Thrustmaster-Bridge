@@ -1,0 +1,68 @@
+<Window x:Class="WheelBridge.CalibrationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Calibrate wheel" Width="440" SizeToContent="Height"
+        Icon="app.ico" ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI">
+    <StackPanel>
+        <!-- Header -->
+        <Border Background="{StaticResource SurfaceBrush}" Padding="18,16">
+            <StackPanel>
+                <TextBlock x:Name="StepText" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="Bold"/>
+                <TextBlock x:Name="TitleText" FontWeight="Bold" FontSize="18" Foreground="{StaticResource AccentBrush}" Margin="0,2,0,0"/>
+                <!-- Progress pips, one per step -->
+                <UniformGrid x:Name="ProgressPips" Rows="1" Margin="0,10,0,0" Height="4"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="18,16,18,8">
+            <TextBlock x:Name="InstructionText" TextWrapping="Wrap" FontSize="13" LineHeight="19"/>
+
+            <!-- Steering meter: full raw range, with the captured center/ends marked -->
+            <Grid x:Name="SteeringMeter" Height="40" Margin="0,18,0,0" Visibility="Collapsed">
+                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4"/>
+                <Canvas x:Name="SteeringCanvas" ClipToBounds="True">
+                    <Rectangle x:Name="SteerRangeFill" Height="40" Fill="{StaticResource AccentDimBrush}" Opacity="0.5" Visibility="Collapsed"/>
+                    <Rectangle x:Name="SteerCenterMark" Width="2" Height="40" Fill="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
+                    <Rectangle x:Name="SteerLeftMark" Width="3" Height="40" Fill="{StaticResource GoodBrush}" Visibility="Collapsed"/>
+                    <Rectangle x:Name="SteerRightMark" Width="3" Height="40" Fill="{StaticResource GoodBrush}" Visibility="Collapsed"/>
+                    <Rectangle x:Name="SteerNeedle" Width="4" Height="40" Fill="{StaticResource AccentBrush}" RadiusX="2" RadiusY="2"/>
+                </Canvas>
+            </Grid>
+            <Grid x:Name="SteeringLegend" Margin="0,4,0,0" Visibility="Collapsed">
+                <TextBlock Text="◀ LEFT" FontSize="10" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Left"/>
+                <TextBlock Text="RIGHT ▶" FontSize="10" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right"/>
+            </Grid>
+
+            <!-- Pedal meter: live fill, rest and deepest-press markers -->
+            <Grid x:Name="PedalMeter" Height="40" Margin="0,18,0,0" Visibility="Collapsed">
+                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="4"/>
+                <Canvas x:Name="PedalCanvas" ClipToBounds="True">
+                    <Rectangle x:Name="PedalFill" Height="40" RadiusX="4" RadiusY="4"/>
+                    <Rectangle x:Name="PedalRestMark" Width="2" Height="40" Fill="{StaticResource MutedTextBrush}"/>
+                    <Rectangle x:Name="PedalPeakMark" Width="3" Height="40" Fill="{StaticResource TextBrush}" Visibility="Collapsed"/>
+                </Canvas>
+            </Grid>
+
+            <TextBlock x:Name="LiveText" Style="{StaticResource HintText}" Margin="0,6,0,0" FontFamily="Consolas"/>
+
+            <!-- Readiness / feedback for the current step -->
+            <Border x:Name="StatusBox" Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="10,8" Margin="0,12,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{StaticResource MutedTextBrush}"/>
+                    <TextBlock x:Name="StatusText" FontSize="12" TextWrapping="Wrap" MaxWidth="360"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="SummaryText" FontFamily="Consolas" FontSize="12" Margin="0,12,0,0" Visibility="Collapsed" LineHeight="18"/>
+        </StackPanel>
+
+        <!-- Footer -->
+        <DockPanel Margin="18,8,18,16" LastChildFill="False">
+            <Button x:Name="CancelButton" Content="Cancel" DockPanel.Dock="Left" Click="CancelButton_Click"/>
+            <Button x:Name="NextButton" Content="Next" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Click="NextButton_Click" MinWidth="80"/>
+            <Button x:Name="BackButton" Content="Back" DockPanel.Dock="Right" Click="BackButton_Click" Margin="0,0,8,0"/>
+        </DockPanel>
+    </StackPanel>
+</Window>

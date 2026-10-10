@@ -61,6 +61,47 @@ virtual controller. It auto-detects the wheel and ViGEmBus on startup and
 retries every couple seconds if either isn't ready yet or the wheel gets
 unplugged.
 
+## Calibration and tuning
+
+SETTINGS -> CALIBRATION -> **Calibrate...** walks through center, full left,
+full right, throttle and brake, and records the raw values at each limit, so
+full physical lock and a floored pedal reach 100% in-game. You can advance
+each step with the wheel's **A** button, so your hands stay on the wheel.
+Calibration is kept through "Restore defaults"; use **Reset** to drop it.
+
+Steering, throttle and brake each have a deadzone and a response curve
+(1.0 = linear). A live graph above each set of sliders plots physical input
+against what the game receives, with a dot tracking the wheel/pedal in real
+time. Deadzones are rescaled, so output ramps up from zero at their edge
+rather than jumping.
+
+## Profiles
+
+Each profile keeps a separate set of tuning per game: steering
+sensitivity/deadzone/curve/invert, throttle and brake deadzone/curve, and
+rumble intensity. Switch with the **PROFILE** dropdown at the right of the
+tab bar (on either tab) or from the tray icon's **Profile** menu.
+
+SETTINGS -> PROFILE manages them: **New** starts a profile as a copy of the
+current one and names it "Profile N" (type over it to rename, or press Enter
+to keep it). **Rename** and **Delete** act on the active profile, and there's
+always at least one.
+
+Calibration, the rumble output device and app options describe the hardware
+or the app rather than a game, so they're shared by every profile. Switching
+profiles saves immediately, so tweaks made to the profile you're leaving
+aren't lost. Settings files from before profiles existed load as "Profile 1".
+
+## Updates
+
+With "Check for updates at startup" on (SETTINGS -> APP, on by default),
+WheelBridge asks the GitHub releases API once per launch whether a newer
+version exists, and if so shows a banner on the STATUS tab (plus a tray
+notification when started minimized) linking to the release. It never
+downloads or installs anything itself. "Check now" runs the same check on
+demand. Releases are compared against `<Version>` in `WheelBridge.csproj`,
+so bump that (and `MyAppVersion` in `installer/WheelBridge.iss`) together.
+
 ## Protocol (reverse engineered)
 
 Every packet on interrupt endpoint `0x81` starts with a 4-byte GIP header:

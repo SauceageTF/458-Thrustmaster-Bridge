@@ -14,6 +14,7 @@ public partial class App : Application
     private NotifyIcon? _trayIcon;
     private MainWindow? _mainWindow;
     private Mutex? _singleInstanceMutex;
+    private string? _updateUrl;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -49,11 +50,16 @@ public partial class App : Application
             Text = "458 Spider Bridge",
         };
         _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+        _trayIcon.BalloonTipClicked += (_, _) => UpdateChecker.OpenInBrowser(_updateUrl);
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show status", null, (_, _) => ShowMainWindow());
+        var profilesMenu = new ToolStripMenuItem("Profile");
+        menu.Items.Add(profilesMenu);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => ExitApplication());
+        // Rebuilt on every open, so it reflects profiles added/renamed since.
+        menu.Opening += (_, _) => FillProfilesMenu(profilesMenu, settings);
         _trayIcon.ContextMenuStrip = menu;
 
         _mainWindow = new MainWindow(_service);
@@ -68,6 +74,42 @@ public partial class App : Application
             _mainWindow.Show();
 
         _service.Start();
+
+        if (settings.CheckForUpdatesAtStartup)
+            _ = CheckForUpdatesAsync();
+    }
+
+    /// <summary>
+    /// One background check against GitHub releases. Silent unless there's an
+    /// update: a banner in the window, plus a tray notification if the window is
+    /// hidden (started minimized), since that's the only place the user would see it.
+    /// </summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        var result = await UpdateChecker.CheckAsync();
+        if (!result.UpdateAvailable || _mainWindow is null || _trayIcon is null)
+            return;
+
+        _updateUrl = result.ReleaseUrl;
+        _mainWindow.ShowUpdateAvailable(result);
+        if (!_mainWindow.IsVisible)
+        {
+            _trayIcon.ShowBalloonTip(10000, "Update available",
+                $"458 Spider Bridge v{result.LatestVersion?.ToString(3)} is out (you have {UpdateChecker.CurrentVersionText}). Click to download.",
+                ToolTipIcon.Info);
+        }
+    }
+
+    /// <summary>One checkable entry per profile, so switching between games doesn't need the window.</summary>
+    private void FillProfilesMenu(ToolStripMenuItem profilesMenu, WheelSettings settings)
+    {
+        profilesMenu.DropDownItems.Clear();
+        foreach (var profile in settings.Profiles)
+        {
+            var item = new ToolStripMenuItem(profile.Name) { Checked = profile == settings.Active };
+            item.Click += (_, _) => _mainWindow?.SwitchProfile(profile);
+            profilesMenu.DropDownItems.Add(item);
+        }
     }
 
     private void ShowMainWindow()

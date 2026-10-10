@@ -11,6 +11,8 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- Compared against GitHub release tags by the update checker; keep in step with MyAppVersion in installer/WheelBridge.iss. -->
+    <Version>1.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
