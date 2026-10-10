@@ -11,10 +11,16 @@ stack — Windows binds it to the `dc1-controller` (Xbox accessory) driver, whic
 claims the device but never completes whatever capability negotiation those
 APIs require, so `RacingWheel.RacingWheels`, `Gamepad.Gamepads`, and
 `RawGameController.RawGameControllers` all report zero devices even though
-Device Manager shows the device as healthy. An existing community tool
-([Phoenix6640/Thrustmaster-458-spider-pc](https://github.com/Phoenix6640/Thrustmaster-458-spider-pc))
-built on those APIs is a closed-source binary with no published code, and
-flapped between "detected"/"not detected" for exactly this reason.
+Device Manager shows the device as healthy.
+
+Credit where it's due:
+[Phoenix6640/Thrustmaster-458-spider-pc](https://github.com/Phoenix6640/Thrustmaster-458-spider-pc)
+got there first and was the reason I knew this wheel could be made to work on
+PC at all — it's a genuinely useful tool and worth trying before this one. It's
+built on the Windows.Gaming.Input APIs above, though, which is why it can flap
+between "detected" and "not detected" on some setups. Since it's distributed as
+a prebuilt binary, I couldn't read its approach to adapt it, so this project
+takes a different route from the ground up.
 
 The fix used here: rebind the device to **WinUSB** (via Zadig) so Windows'
 Xbox accessory driver never touches it, then talk to it directly over raw USB.
