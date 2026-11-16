@@ -78,19 +78,60 @@ rather than jumping.
 ## Profiles
 
 Each profile keeps a separate set of tuning per game: steering
-sensitivity/deadzone/curve/invert, throttle and brake deadzone/curve, and
-rumble intensity. Switch with the **PROFILE** dropdown at the right of the
+sensitivity/deadzone/curve/invert, throttle and brake deadzone/curve,
+button mapping and shift layer, and rumble intensity. Switch with the **PROFILE** dropdown at the right of the
 tab bar (on either tab) or from the tray icon's **Profile** menu.
 
 SETTINGS -> PROFILE manages them: **New** starts a profile as a copy of the
 current one and names it "Profile N" (type over it to rename, or press Enter
 to keep it). **Rename** and **Delete** act on the active profile, and there's
-always at least one.
+always at least one. New profiles don't copy the games linked to the one
+they came from.
+
+### Switching automatically per game
+
+Under SETTINGS -> PROFILE, link games to the active profile with **Add running
+game** (start the game first, then pick it from the list of open windows) or
+**Browse for .exe...**. When a linked game's window comes to the front, by
+launching it or alt-tabbing back in, WheelBridge switches to that profile.
+The STATUS tab notes when it last did this, and the tray tooltip shows the
+active profile. Each game can be linked to one profile. Turn the whole thing
+off with "Switch profiles when a linked game comes to the front" under APP.
+Leaving a game doesn't switch back, so alt-tabbing to Discord mid-race keeps
+the game's profile.
+
+Games are matched by executable file name (e.g. `forzahorizon5.exe`), so a
+game whose launcher and game window are different processes needs the game
+window's exe, which is what "Add running game" lists.
+
+### Import and export
+
+**Export...** saves the active profile, including its button mapping and
+linked games, to a `.json` file for sharing or backup. **Import...** adds
+profiles from one or more such files, and also accepts a whole
+`settings.json` copied from another PC (every profile in it is added).
+Imported names that clash get " (2)" appended. Games already linked to one
+of your profiles stay with that profile. Values outside the slider ranges
+are clamped.
 
 Calibration, the rumble output device and app options describe the hardware
 or the app rather than a game, so they're shared by every profile. Switching
 profiles saves immediately, so tweaks made to the profile you're leaving
 aren't lost. Settings files from before profiles existed load as "Profile 1".
+
+## Buttons and shift layer
+
+SETTINGS -> BUTTONS chooses what each wheel button sends to the game: any
+Xbox 360 button, including ones the wheel doesn't have (Guide and the two
+stick clicks), or nothing. Two wheel buttons can send the same Xbox button.
+
+Pick a **Shift button** to get a second layer: while it's held, buttons send
+their WITH SHIFT choice instead ("Same" sends the normal one). The shift
+button only modifies, so it sends nothing to the game. Each button keeps the
+layer it was pressed on until it's released, so letting go of shift mid-press
+doesn't swap one held Xbox button for another. The STATUS tab still shows the
+physical buttons, plus a SHIFT chip while shift is held. Mapping is per
+profile; **Reset buttons** returns the profile to the default layout.
 
 ## Updates
 

@@ -70,6 +70,8 @@
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="StatusMessageText" Style="{StaticResource HintText}" Margin="0,0,0,12"/>
+                    <!-- Last automatic profile switch, e.g. "Switched to Forza for forzahorizon5.exe" -->
+                    <TextBlock x:Name="AutoSwitchText" Style="{StaticResource HintText}" Margin="0,-8,0,12" Visibility="Collapsed"/>
 
                     <!-- Steering gauge -->
                     <TextBlock Text="STEERING" Style="{StaticResource SectionLabel}"/>
@@ -183,6 +185,10 @@
                         <Border x:Name="ChipStart" Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="12,5">
                             <TextBlock Text="START" FontSize="11" FontWeight="Bold"/>
                         </Border>
+                        <!-- Lights while the profile's shift button is held; hidden when there's no shift layer -->
+                        <Border x:Name="ChipShift" Background="{StaticResource SurfaceBrush}" CornerRadius="4" Padding="12,5" Margin="8,0,0,0" Visibility="Collapsed">
+                            <TextBlock Text="SHIFT" FontSize="11" FontWeight="Bold"/>
+                        </Border>
                     </StackPanel>
 
                     <!-- Rumble the game is sending (what the Pico is being told to do) -->
@@ -246,7 +252,23 @@
                             <Button x:Name="DeleteProfileButton" Content="Delete" Click="DeleteProfileButton_Click"/>
                         </StackPanel>
                     </Grid>
-                    <TextBlock x:Name="ProfileHintText" Style="{StaticResource HintText}" Margin="0,4,0,0"/>
+                    <DockPanel Margin="0,4,0,0">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="6,0,0,0">
+                            <Button Content="Import..." Click="ImportProfileButton_Click" Margin="0,0,6,0" ToolTip="Add profiles from an exported file or another PC's settings.json"/>
+                            <Button Content="Export..." Click="ExportProfileButton_Click" ToolTip="Save this profile to a file to share or back up"/>
+                        </StackPanel>
+                        <TextBlock x:Name="ProfileHintText" Style="{StaticResource HintText}"/>
+                    </DockPanel>
+                    <TextBlock x:Name="ProfileFeedbackText" Style="{StaticResource HintText}" Margin="0,4,0,0"/>
+
+                    <TextBlock Text="Games that switch to this profile" FontSize="12" Margin="0,10,0,4"/>
+                    <WrapPanel x:Name="GamesPanel"/>
+                    <TextBlock x:Name="NoGamesText" Text="None yet." Style="{StaticResource HintText}" Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <Button Content="Add running game ▾" Click="AddRunningGameButton_Click" Margin="0,0,6,0" ToolTip="Pick from programs with a window open right now"/>
+                        <Button Content="Browse for .exe..." Click="BrowseGameButton_Click"/>
+                    </StackPanel>
+                    <TextBlock Text="When one of these comes to the front, WheelBridge switches to this profile. A game can belong to one profile." Style="{StaticResource HintText}" Margin="0,4,0,0"/>
 
                     <TextBlock Text="STEERING" Style="{StaticResource SectionLabel}"/>
                     <local:CurveGraph x:Name="SteeringGraph" Height="150" Symmetric="True" CurveBrush="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
@@ -344,6 +366,23 @@
                     <Slider x:Name="BrakeCurveSlider" IsSnapToTickEnabled="True" TickFrequency="0.05" Minimum="0.5" Maximum="2.0" Value="1.0" ValueChanged="BrakeCurveSlider_ValueChanged"/>
                     <TextBlock Text="Below 1.0 = more bite early in the pedal; above 1.0 = more gradual (on the brake, harder to lock up)." Style="{StaticResource HintText}" Margin="0,2,0,10"/>
 
+                    <TextBlock Text="BUTTONS" Style="{StaticResource SectionLabel}"/>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="150"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Shift button" VerticalAlignment="Center" FontSize="12"/>
+                        <ComboBox x:Name="ShiftButtonCombo" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="ShiftButtonCombo_SelectionChanged"
+                                  AutomationProperties.Name="Shift button"/>
+                    </Grid>
+                    <TextBlock Text="Hold it to use the WITH SHIFT column. It's a modifier only, so it sends nothing to the game itself." Style="{StaticResource HintText}" Margin="0,0,0,8"/>
+                    <!-- One row per wheel button, built in code: wheel button | sends | with shift -->
+                    <Grid x:Name="ButtonMapGrid"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,10">
+                        <Button Content="Reset buttons" Click="ResetButtonsButton_Click"/>
+                    </StackPanel>
+
                     <TextBlock Text="RUMBLE OUTPUT" Style="{StaticResource SectionLabel}"/>
                     <TextBlock Text="The wheel has no motor, so rumble the game sends is forwarded to:" Style="{StaticResource HintText}" Margin="0,0,0,4"/>
                     <RadioButton x:Name="HapticXboxRadio" GroupName="HapticTarget" Content="Xbox controller strapped to the wheel" Checked="HapticTargetRadio_Checked"/>
@@ -379,6 +418,7 @@
                     <TextBlock Text="APP" Style="{StaticResource SectionLabel}"/>
                     <CheckBox x:Name="StartMinimizedCheck" Content="Start minimized to tray" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
                     <CheckBox x:Name="LaunchAtStartupCheck" Content="Launch when Windows starts" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
+                    <CheckBox x:Name="AutoSwitchCheck" Content="Switch profiles when a linked game comes to the front" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
                     <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates at startup" Checked="AppOptionCheck_Changed" Unchecked="AppOptionCheck_Changed"/>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <Button x:Name="CheckUpdatesButton" Content="Check now" Click="CheckUpdatesButton_Click" Margin="0,0,10,0"/>
@@ -401,7 +441,7 @@
             <TextBlock Text="PROFILE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <ComboBox x:Name="ProfileCombo" Width="150" VerticalAlignment="Center" DisplayMemberPath="Name" SelectionChanged="ProfileCombo_SelectionChanged"
                       AutomationProperties.Name="Profile"
-                      ToolTip="Switch profile. Steering, pedal and rumble-intensity settings are saved per profile."/>
+                      ToolTip="Switch profile. Steering, pedal, button and rumble-intensity settings are saved per profile."/>
         </StackPanel>
         </Grid>
     </DockPanel>

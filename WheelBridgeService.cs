@@ -36,6 +36,9 @@ public sealed record WheelState(
     public int RawThrottle { get; init; }
     public int RawBrake { get; init; }
 
+    /// <summary>The profile's shift button is held (always false without a shift layer).</summary>
+    public bool ShiftHeld { get; init; }
+
     public static readonly WheelState Initial = new(
         false, false, 0, 0, 0,
         false, false, false, false,
@@ -73,28 +76,7 @@ public sealed class WheelBridgeService : IDisposable
     private const int WheelOffset = 6;
     private const int ThrottleOffset = 8;
     private const int BrakeOffset = 10;
-    private const int Button1Offset = 4;
-    private const int Button2Offset = 5;
-
-    private static readonly (byte mask, Xbox360Button button)[] Button1Map =
-    {
-        (0x04, Xbox360Button.Start),
-        (0x08, Xbox360Button.Back),
-        (0x10, Xbox360Button.A),
-        (0x20, Xbox360Button.B),
-        (0x40, Xbox360Button.X),
-        (0x80, Xbox360Button.Y),
-    };
-
-    private static readonly (byte mask, Xbox360Button button)[] Button2Map =
-    {
-        (0x01, Xbox360Button.Up),
-        (0x02, Xbox360Button.Down),
-        (0x04, Xbox360Button.Left),
-        (0x08, Xbox360Button.Right),
-        (0x10, Xbox360Button.LeftShoulder),
-        (0x20, Xbox360Button.RightShoulder),
-    };
+    // Button bits are in ButtonMapping.InputBits.
 
     private readonly object _lock = new();
     private WheelState _state = WheelState.Initial;
@@ -254,6 +236,9 @@ public sealed class WheelBridgeService : IDisposable
                 }
 
                 var pad = client.CreateXbox360Controller();
+                // Send each frame as one report, so the game never sees a half-updated
+                // state (e.g. a remapped press moving from one button to another).
+                pad.AutoSubmitReport = false;
                 // Games rumble the virtual pad like any Xbox 360 controller; the
                 // wheel can't act on it, so hand it to the external motor driver.
                 pad.FeedbackReceived += (_, fb) => Haptics.SetRumble(fb.LargeMotor, fb.SmallMotor);
@@ -263,6 +248,9 @@ public sealed class WheelBridgeService : IDisposable
                 SetState(CurrentState with { WheelConnected = true, VigemConnected = true, StatusMessage = "Connected" });
 
                 var buf = new byte[64];
+                var down = new bool[ButtonMapping.WheelButtonCount];
+                var padButtons = new bool[ButtonMapping.PadButtonCount];
+                var layers = new ButtonLayerResolver();
                 while (!token.IsCancellationRequested)
                 {
                     var err = reader.Read(buf, 500, out int bytesRead);
@@ -297,21 +285,24 @@ public sealed class WheelBridgeService : IDisposable
                     pad.SetSliderValue(Xbox360Slider.RightTrigger, (byte)(throttle * 255));
                     pad.SetSliderValue(Xbox360Slider.LeftTrigger, (byte)(brake * 255));
 
-                    var b1 = buf[Button1Offset];
-                    var b2 = buf[Button2Offset];
-                    foreach (var (mask, button) in Button1Map)
-                        pad.SetButtonState(button, (b1 & mask) != 0);
-                    foreach (var (mask, button) in Button2Map)
-                        pad.SetButtonState(button, (b2 & mask) != 0);
+                    // Physical buttons -> the profile's mapping and shift layer -> pad buttons.
+                    ButtonMapping.ReadPressed(buf, down);
+                    var shiftHeld = layers.Resolve(down, tuning, padButtons);
+                    foreach (var (padButton, xboxButton) in ButtonMapping.XboxButtons)
+                        pad.SetButtonState(xboxButton, padButtons[(int)padButton]);
+                    pad.SubmitReport();
 
+                    // The STATUS tab shows the physical buttons, so you can see what you're pressing while remapping.
+                    bool Down(WheelButton b) => down[(int)b];
                     SetState(new WheelState(
                         true, true, wheel, throttle, brake,
-                        A: (b1 & 0x10) != 0, B: (b1 & 0x20) != 0, X: (b1 & 0x40) != 0, Y: (b1 & 0x80) != 0,
-                        LeftShoulder: (b2 & 0x10) != 0, RightShoulder: (b2 & 0x20) != 0,
-                        Start: (b1 & 0x04) != 0, Back: (b1 & 0x08) != 0,
-                        Up: (b2 & 0x01) != 0, Down: (b2 & 0x02) != 0, Left: (b2 & 0x04) != 0, Right: (b2 & 0x08) != 0,
+                        A: Down(WheelButton.A), B: Down(WheelButton.B), X: Down(WheelButton.X), Y: Down(WheelButton.Y),
+                        LeftShoulder: Down(WheelButton.LeftPaddle), RightShoulder: Down(WheelButton.RightPaddle),
+                        Start: Down(WheelButton.Start), Back: Down(WheelButton.Back),
+                        Up: Down(WheelButton.Up), Down: Down(WheelButton.Down), Left: Down(WheelButton.Left), Right: Down(WheelButton.Right),
                         StatusMessage: "Connected")
                     {
+                        ShiftHeld = shiftHeld,
                         WheelInput = wheelInput,
                         ThrottleInput = throttleInput,
                         BrakeInput = brakeInput,

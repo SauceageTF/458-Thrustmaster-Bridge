@@ -15,6 +15,7 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private Mutex? _singleInstanceMutex;
     private string? _updateUrl;
+    private ForegroundWatcher? _foregroundWatcher;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -75,6 +76,12 @@ public partial class App : Application
 
         _service.Start();
 
+        _foregroundWatcher = new ForegroundWatcher();
+        _foregroundWatcher.ForegroundChanged += exe => AutoSwitchProfile(settings, exe);
+        _mainWindow.ProfileSwitched += () => UpdateTrayText(settings);
+        AutoSwitchProfile(settings, ForegroundWatcher.CurrentExe()); // a linked game may already be running
+        UpdateTrayText(settings);
+
         if (settings.CheckForUpdatesAtStartup)
             _ = CheckForUpdatesAsync();
     }
@@ -98,6 +105,24 @@ public partial class App : Application
                 $"458 Spider Bridge v{result.LatestVersion?.ToString(3)} is out (you have {UpdateChecker.CurrentVersionText}). Click to download.",
                 ToolTipIcon.Info);
         }
+    }
+
+    /// <summary>Switches to the profile linked to the game that just came to the front, if there is one.</summary>
+    private void AutoSwitchProfile(WheelSettings settings, string? exe)
+    {
+        if (!settings.AutoSwitchProfiles || _mainWindow is null)
+            return;
+        if (settings.ProfileForGame(exe) is { } profile && profile != settings.Active)
+            _mainWindow.SwitchProfile(profile, reason: exe);
+    }
+
+    /// <summary>The tray tooltip names the active profile, so an automatic switch can be checked at a glance.</summary>
+    private void UpdateTrayText(WheelSettings settings)
+    {
+        if (_trayIcon is null)
+            return;
+        var text = $"458 Spider Bridge - {settings.Active.Name}";
+        _trayIcon.Text = text.Length > 63 ? text[..63] : text; // NotifyIcon rejects long tooltips
     }
 
     /// <summary>One checkable entry per profile, so switching between games doesn't need the window.</summary>
@@ -128,6 +153,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _foregroundWatcher?.Dispose();
         _trayIcon?.Dispose();
         _service?.Dispose();
         if (_singleInstanceMutex is not null)

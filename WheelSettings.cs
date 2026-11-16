@@ -75,6 +75,9 @@ public sealed class WheelSettings
 
     public bool LaunchAtWindowsStartup { get; set; }
 
+    /// <summary>Switch to a profile when one of its linked <see cref="TuningProfile.Games"/> comes to the front.</summary>
+    public bool AutoSwitchProfiles { get; set; } = true;
+
     /// <summary>Ask GitHub for a newer release once at startup. Only reads the public releases API; nothing is downloaded automatically.</summary>
     public bool CheckForUpdatesAtStartup { get; set; } = true;
 
@@ -93,6 +96,54 @@ public sealed class WheelSettings
 
     public bool IsProfileNameTaken(string name, TuningProfile? except = null) =>
         _profiles.Any(p => p != except && string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The profile <paramref name="exe"/> is linked to, if any.</summary>
+    public TuningProfile? ProfileForGame(string? exe)
+    {
+        var name = TuningProfile.NormalizeGame(exe);
+        return name is null ? null : _profiles.FirstOrDefault(p => p.Games.Contains(name));
+    }
+
+    /// <summary>
+    /// Adds profiles read from a file, and switches to the last one. Names that are
+    /// taken get " (2)", " (3)"...; games already linked to another profile stay
+    /// with that one. Returns a note per game left out, for the user.
+    /// </summary>
+    public List<string> ImportProfiles(IEnumerable<TuningProfile> incoming)
+    {
+        var notes = new List<string>();
+        foreach (var profile in incoming)
+        {
+            profile.Sanitize();
+            profile.Name = UniqueName(profile.Name);
+            foreach (var game in profile.Games.ToList())
+            {
+                if (ProfileForGame(game) is { } owner)
+                {
+                    profile.Games.Remove(game);
+                    notes.Add($"{game} stays linked to \"{owner.Name}\".");
+                }
+            }
+            _profiles.Add(profile);
+            _active = profile;
+        }
+        return notes;
+    }
+
+    private string UniqueName(string name)
+    {
+        if (!IsProfileNameTaken(name))
+            return name;
+        for (var n = 2; ; n++)
+        {
+            var suffix = $" ({n})";
+            var candidate = (name.Length + suffix.Length > TuningProfile.MaxNameLength
+                ? name[..(TuningProfile.MaxNameLength - suffix.Length)].TrimEnd()
+                : name) + suffix;
+            if (!IsProfileNameTaken(candidate))
+                return candidate;
+        }
+    }
 
     public void SwitchTo(TuningProfile profile)
     {
@@ -122,11 +173,11 @@ public sealed class WheelSettings
         return true;
     }
 
-    /// <summary>Puts the active profile's tuning back to defaults, keeping its name.</summary>
+    /// <summary>Puts the active profile's tuning and buttons back to defaults, keeping its name and linked games.</summary>
     public void ResetActiveProfile()
     {
         var index = _profiles.IndexOf(_active);
-        var fresh = new TuningProfile { Name = _active.Name };
+        var fresh = new TuningProfile { Name = _active.Name, Games = _active.Games };
         _profiles[index] = fresh;
         _active = fresh;
     }
@@ -169,8 +220,14 @@ public sealed class WheelSettings
 
         if (_profiles.Count == 0)
             _profiles.Add(new TuningProfile());
+        var linked = new HashSet<string>();
         foreach (var profile in _profiles)
+        {
             profile.UpgradeLegacyFields();
+            profile.Sanitize();
+            // A hand-edited file could link one game to two profiles; the first keeps it.
+            profile.Games.RemoveAll(game => !linked.Add(game));
+        }
         _active = _profiles[Math.Clamp(_loadedActiveIndex, 0, _profiles.Count - 1)];
     }
 
